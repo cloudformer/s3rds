@@ -74,9 +74,12 @@ terraform -chdir=terraform apply -var-file=my.json
 terraform -chdir=terraform output                   # db_url、db_ro_url
 ```
 
-会创建一个 S3 桶（`<env>-srds-db-2026`）、读写 Lambda，以及 `"db_ro": true` 时的只读 Lambda，每个都有自己的
-Function URL、log group 和 IAM 角色。`terraform -chdir=terraform destroy -var-file=my.json` 会删掉全部，
-数据库也一起删（`"force_destroy": true`，默认）；改成 `false`，destroy 遇到非空的桶就停下，数据库保留。
+`terraform/` 调用的是 Terraform Registry 上发布的模块
+[`cloudformer/infra/aws//modules/s3rds`](https://github.com/cloudformer/terraform-aws-infra/tree/main/modules/s3rds)，
+它部署 PyPI 上发布的 `s3rds[server]`；全部变量见模块的 README。会创建一个 S3 桶（`<project_name>-db-<账号 ID>`）、
+读写 Lambda，以及 `"db_ro": true` 时的只读 Lambda，每个都有自己的 Function URL、log group 和 IAM 角色。
+`terraform -chdir=terraform destroy -var-file=my.json` 会删掉全部，数据库也一起删（`"force_destroy": true`，默认）；
+改成 `false`，destroy 遇到非空的桶就停下，数据库保留。
 
 ### 安全
 - **公网 URL，密码在里面**：`function_url_auth = "NONE"` 时 Function URL 是公网的，所以它的资源策略写
@@ -190,9 +193,22 @@ CI 跑上面每一种 Python × Django 组合。自动生成的结果，每项�
 ```
 
 目录：`client/` 是 pip 包（驱动 + `s3rds/server/`，即 Lambda）· `terraform/` · `tests/`。
-Terraform 部署的是本仓库当前的代码（`./client[server]`），所以 `apply` 跑的就是你测的。
-发版：测试，改版本号（`client/pyproject.toml`、`__version__`），写 CHANGELOG，提交，
-`git tag vX.Y.Z && git push --tags`。
+
+发版按这个顺序（上一步成功才做下一步）：
+
+1. **测试**：`.venv/bin/python -m pytest tests -q`；改了控制台的，也在浏览器里看一遍。
+2. **发包**：改版本号（`client/pyproject.toml`、`__version__`），写 CHANGELOG，提交，push，然后
+   `git tag vX.Y.Z && git push --tags`：CI 测试、打包，把 `s3rds` X.Y.Z 发到 PyPI（几分钟；用
+   `python3 -m pip index versions s3rds` 确认）。
+3. **部署**：`terraform/main.tf` 里写 `s3rds_version = "X.Y.Z"`，然后 `terraform -chdir=terraform plan
+   -var-file=real-srds.json`（预期：只有两个 Lambda 的代码更新），再 `apply`。
+4. **设为模块默认版本**（想让别的部署不写 `s3rds_version` 也用上它时）：在
+   [terraform-aws-infra](https://github.com/cloudformer/terraform-aws-infra) 里改 `modules/s3rds/variables.tf`
+   的默认 `s3rds_version`，提交，push，然后
+   `AWS_PROFILE=dev TF_VAR_db_password='<至少 16 位>' make release PROJECT=s3rds VERSION=vA.B.C`（mock 测试、
+   真实部署 + smoke 测试 + 销毁，然后打 tag；Registry 自动发布）。回到这里：`terraform/main.tf` 里
+   `version = "A.B.C"`，注释掉 `s3rds_version`，`terraform -chdir=terraform init -upgrade`，再 `plan`（预期：No changes）。
+
 待办：[tests/compat/TASKS.md](tests/compat/TASKS.md)。
 
 ## IdleFree 系列

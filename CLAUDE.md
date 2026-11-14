@@ -99,10 +99,11 @@ s3rds (github.com/cloudformer/s3rds) is the reference implementation; when in do
   reference service: add it there.
 - The package name is read from `client/pyproject.toml` by `tests/conftest.py` (`PACKAGE`); nothing else
   hard-codes it.
-- Release: test first (Terraform always deploys the working tree, `./client[server]` in `terraform/main.tf`, not a
-  variable: pytest, apply, the `--aws` comparison), then bump `version` in `client/pyproject.toml` and `__version__`
-  in `client/<package>/__init__.py`, CHANGELOG entry, one commit, `git tag vX.Y.Z && git push --tags`. Once per package Frank adds the PyPI
-  trusted publisher (owner cloudformer, this repo, `publish.yml`, environment `pypi`).
+- Release: the four steps in README.md "Development" (test; bump `version` in `client/pyproject.toml` and
+  `__version__`, CHANGELOG, `git tag vX.Y.Z && git push --tags` → PyPI; deploy with `s3rds_version`; optionally
+  make it the default of the Registry module in terraform-aws-infra). `terraform/` calls the published module
+  (`cloudformer/infra/aws//modules/s3rds`), which deploys a release from PyPI, never the working tree. Once per
+  package Frank adds the PyPI trusted publisher (owner cloudformer, this repo, `publish.yml`, environment `pypi`).
 
 ## Layout (do not move things)
 

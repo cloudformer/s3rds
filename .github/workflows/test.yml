@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { python: "3.9",  django: "4.2" }
+          - { python: "3.9",  django: "4.2", os: "ubuntu-24.04" }   # Ubuntu 26.04 (ubuntu-latest) has no Python 3.9
           - { python: "3.10", django: "4.2" }
           - { python: "3.11", django: "5.2" }
           - { python: "3.12", django: "5.2" }
@@ -25,3 +25,4 @@ jobs:
       compose-service: "mysql postgres"
       test-env: "MYSQL_DSN=mysql://root:test@127.0.0.1:3306/compat PG_DSN=postgresql://postgres:test@127.0.0.1:5433/compat"
       report-name: compat-report-py${{ matrix.python }}-django${{ matrix.django }}
+      runs-on: ${{ matrix.os || 'ubuntu-latest' }}

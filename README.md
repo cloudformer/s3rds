@@ -75,10 +75,12 @@ terraform -chdir=terraform apply -var-file=my.json
 terraform -chdir=terraform output                   # db_url, db_ro_url
 ```
 
-This creates one S3 bucket (`<env>-srds-db-2026`), the read/write Lambda and, with `"db_ro": true`, the read-only
-Lambda, each with a Function URL, its own log group and its own IAM role. `terraform -chdir=terraform destroy
--var-file=my.json` removes everything, databases included (`"force_destroy": true`, the default); set it to `false`
-and destroy stops at a non-empty bucket, so the databases survive.
+`terraform/` calls the published module, [`cloudformer/infra/aws//modules/s3rds`](https://github.com/cloudformer/terraform-aws-infra/tree/main/modules/s3rds)
+on the Terraform Registry, which deploys a released `s3rds[server]` from PyPI; the module's README lists every
+variable. It creates one S3 bucket (`<project_name>-db-<account id>`), the read/write Lambda and, with
+`"db_ro": true`, the read-only Lambda, each with a Function URL, its own log group and its own IAM role.
+`terraform -chdir=terraform destroy -var-file=my.json` removes everything, databases included (`"force_destroy":
+true`, the default); set it to `false` and destroy stops at a non-empty bucket, so the databases survive.
 
 ### Security
 - **Public URL, password inside**: with `function_url_auth = "NONE"` the Function URLs are public, so their resource
@@ -194,9 +196,23 @@ CI runs every Python × Django combination above. The generated result, every fe
 ```
 
 Layout: `client/` the pip package (drivers + `s3rds/server/`, the Lambda) · `terraform/` · `tests/`.
-Terraform deploys the server from this working tree (`./client[server]`), so `apply` runs what you test.
-Release: test, bump the version (`client/pyproject.toml`, `__version__`), CHANGELOG, commit,
-`git tag vX.Y.Z && git push --tags`.
+
+Release, in this order (each step only after the one before succeeded):
+
+1. **Test**: `.venv/bin/python -m pytest tests -q`; for a console change, look at it in a browser too.
+2. **Publish the package**: bump the version (`client/pyproject.toml`, `__version__`), CHANGELOG, commit, push, then
+   `git tag vX.Y.Z && git push --tags`: CI tests, builds and publishes `s3rds` X.Y.Z to PyPI (a few minutes; check
+   `python3 -m pip index versions s3rds`).
+3. **Deploy it**: `s3rds_version = "X.Y.Z"` in `terraform/main.tf`, then `terraform -chdir=terraform plan
+   -var-file=real-srds.json` (expected: only the two Lambdas' code changes) and `apply`.
+4. **Make it the module's default** (when other deployments should get it without setting `s3rds_version`): in
+   [terraform-aws-infra](https://github.com/cloudformer/terraform-aws-infra) set the default `s3rds_version` in
+   `modules/s3rds/variables.tf`, commit, push, then
+   `AWS_PROFILE=dev TF_VAR_db_password='<16+ characters>' make release PROJECT=s3rds VERSION=vA.B.C` (mock tests,
+   a real deploy + smoke test + destroy, then the tag; the Registry publishes it). Back here: `version = "A.B.C"`
+   in `terraform/main.tf`, comment out `s3rds_version`, `terraform -chdir=terraform init -upgrade`, then `plan`
+   (expected: No changes).
+
 Open work: [tests/compat/TASKS.md](tests/compat/TASKS.md).
 
 ## Part of IdleFree
