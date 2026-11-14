@@ -122,12 +122,6 @@ td input {
   border: 2px solid #e5e7eb; border-radius: 4px; font-size: 13px;
 }
 
-/* Add form */
-.add-form {
-  background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px;
-  padding: 20px; margin: 20px 0;
-}
-.add-form h3 { color: #065f46; margin-bottom: 15px; font-size: 18px; }
 .form-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 15px; margin-bottom: 15px;
@@ -195,6 +189,7 @@ dialog .form-grid { grid-template-columns: 1fr; }
     <label>Table</label><select id="tables"></select>
     <button class="btn btn-secondary" id="newtable">+ New table</button>
     <button class="btn btn-ghost" id="refresh">refresh</button>
+    <button class="btn btn-ghost" id="schema" disabled>schema</button>
   </div>
 
   <div class="sql-section">
@@ -227,7 +222,7 @@ dialog .form-grid { grid-template-columns: 1fr; }
 <script>
 const $ = s => document.querySelector(s);
 const state = {db:null, table:null, tables:[], loaded:false, offset:0, limit:50, total:0,
-               columns:[], rows:[], structure:[]};
+               columns:[], rows:[], structure:[], schema:false};  // schema: the structure panel is open
 // the browser keeps only two things: the credential and the last database/table (data is always fetched)
 const store = {
   get: k => { try { return localStorage.getItem('srds_' + k); } catch(e){ return null; } },
@@ -369,6 +364,7 @@ async function loadDbs(keep){
 }
 async function loadTables(keep){
   const wasLoaded = state.loaded && keep && keep === state.table;
+  if (!keep || keep !== state.table) state.schema = false;  // the panel stays open only on the same table
   state.table = null; state.tables = []; state.loaded = false; state.offset = 0;
   $('#tables').innerHTML = '<option value="">-- table --</option>';
   if (state.db){
@@ -380,6 +376,7 @@ async function loadTables(keep){
     $('#tables').value = state.table || '';
     store.set('table:' + state.db, state.table);
   }
+  if (!wasLoaded && state.schema && state.table) await loadStructure();  // an open panel shows the structure after DDL
   if (wasLoaded) await loadRows(); else render();  // refresh only if rows were showing (e.g. after DDL)
 }
 async function loadRows(){
@@ -390,11 +387,43 @@ async function loadRows(){
                         structure:d.structure || [], ms:d.ms, s3:d.s3, loaded:true});
   render();
 }
+// the schema panel without the rows: the same call with one row, only its structure kept
+async function loadStructure(){
+  const d = await api(`/api/db/${state.db}/table/${state.table}?limit=1&offset=0`);
+  state.structure = d.structure || [];
+}
 
 function isAutoPk(col){ return col.pk && /^INTEGER$/i.test(col.type || ''); }
 
+// structure (like DESCRIBE), each column with rename / drop; shown only while the schema panel is open
+function schemaSection(){
+  if (!state.schema) return '';
+  const structRows = state.structure.map((c, i) => `<tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${esc(c.type || '-')}</td>
+      <td>${c.notnull ? 'NO' : 'YES'}</td>
+      <td>${c.pk ? 'PRI' : '-'}</td>
+      <td>${c.dflt_value === null ? '-' : esc(c.dflt_value)}</td>
+      <td>${isAutoPk(c) ? 'auto_increment' : '-'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-small" onclick="renameCol(${i})">rename</button>
+        ${c.pk ? '' : `<button class="btn-danger" onclick="dropCol(${i})">drop</button>`}
+      </td>
+    </tr>`).join('');
+  return `
+    <div class="section-title">Schema
+      <button class="btn btn-secondary btn-small" id="addcol">+ Add column</button>
+    </div>
+    <div class="grid-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th><th>actions</th></tr></thead>
+      <tbody>${structRows}</tbody>
+    </table></div>`;
+}
+
 function render(){
   $('#info-db').textContent = state.db || '-';
+  $('#schema').disabled = !state.table;
+  $('#schema').textContent = state.schema ? 'hide schema' : 'schema';
   const main = $('#main');
   if (!state.db){
     main.innerHTML = '<div class="table-section"><div class="empty">Pick a database above, or click “+ New database”</div></div>';
@@ -409,39 +438,17 @@ function render(){
   if (!state.loaded){
     main.innerHTML = `<div class="table-section">
       <div class="table-header"><div class="table-name">📋 ${esc(state.table)}</div></div>
+      ${schemaSection()}
       <div class="empty">Rows are not loaded automatically.
         <button class="btn btn-primary" id="loadbtn" style="margin-left:10px">Load rows</button>
       </div></div>`;
     $('#loadbtn').onclick = () => loadRows().catch(e => msg(friendly(e.message)));
+    if (state.schema) $('#addcol').onclick = addCol;
     return;
   }
   const hasRowid = state.columns[0] === '_rowid_';
   const pages = Math.max(1, Math.ceil(state.total / state.limit));
   const page = Math.floor(state.offset / state.limit) + 1;
-
-  // structure (like DESCRIBE), each column with rename / drop
-  const structRows = state.structure.map((c, i) => `<tr>
-      <td><strong>${esc(c.name)}</strong></td>
-      <td>${esc(c.type || '-')}</td>
-      <td>${c.notnull ? 'NO' : 'YES'}</td>
-      <td>${c.pk ? 'PRI' : '-'}</td>
-      <td>${c.dflt_value === null ? '-' : esc(c.dflt_value)}</td>
-      <td>${isAutoPk(c) ? 'auto_increment' : '-'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-small" onclick="renameCol(${i})">rename</button>
-        ${c.pk ? '' : `<button class="btn-danger" onclick="dropCol(${i})">drop</button>`}
-      </td>
-    </tr>`).join('');
-
-  // insert form: one field per column, the autoincrement key skipped
-  const formFields = state.structure.filter(c => !isAutoPk(c)).map(c => {
-    const required = c.notnull && c.dflt_value === null && !c.pk;
-    return `<div class="form-field">
-      <label>${esc(c.name)}</label>
-      <input data-col="${esc(c.name)}" placeholder="${esc(c.type || '')}">
-      <small>${esc(c.type || '')}${required ? ' (required)' : ''}${c.dflt_value !== null ? ' default ' + esc(c.dflt_value) : ''}</small>
-    </div>`;
-  }).join('');
 
   // data grid
   const dataHead = '<tr>' + state.columns.map(c => `<th>${esc(c)}</th>`).join('')
@@ -457,31 +464,19 @@ function render(){
   <div class="table-section">
     <div class="table-header">
       <div class="table-name">📋 ${esc(state.table)}</div>
-      <div class="row-count">${state.total} rows</div>
+      <div style="display:flex; gap:10px; align-items:center">
+        <div class="row-count">${state.total} rows</div>
+        <button class="btn btn-secondary btn-small" id="addrow">+ Insert row</button>
+      </div>
     </div>
-
-    <div class="section-title">Structure
-      <button class="btn btn-secondary btn-small" id="addcol">+ Add column</button>
-    </div>
-    <div class="grid-wrap"><table>
-      <thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th><th>actions</th></tr></thead>
-      <tbody>${structRows}</tbody>
-    </table></div>
-
-    <div class="add-form">
-      <h3>➕ Insert a row into ${esc(state.table)}</h3>
-      <div class="form-grid" id="addgrid">${formFields ||
-        '<small style="color:#6b7280">only the autoincrement key — just click Insert</small>'}</div>
-      <button class="btn btn-primary" id="addrow">Insert</button>
-      <small class="hint" style="margin-left:10px">empty fields take the default / NULL</small>
-    </div>
+    ${schemaSection()}
 
     <div class="section-title">Rows (page ${page} / ${pages})
       ${state.ms !== undefined ? `<span class="hint">${state.ms} ms · ${state.s3}</span>` : ''}
     </div>
     ${state.rows.length
       ? `<div class="grid-wrap"><table id="grid"><thead>${dataHead}</thead><tbody>${dataRows}</tbody></table></div>`
-      : '<div class="empty">No rows yet — insert the first one with the form above</div>'}
+      : '<div class="empty">No rows yet — insert the first one with “+ Insert row”</div>'}
 
     <div class="pagination">
       <button id="prev" ${state.offset <= 0 ? 'disabled' : ''}>← prev</button>
@@ -491,7 +486,7 @@ function render(){
   </div>`;
 
   $('#addrow').onclick = addRow;
-  $('#addcol').onclick = addCol;
+  if (state.schema) $('#addcol').onclick = addCol;
   $('#prev').onclick = () => { state.offset = Math.max(0, state.offset - state.limit);
     loadRows().catch(e => msg(friendly(e.message))); };
   $('#next').onclick = () => { state.offset += state.limit;
@@ -507,12 +502,20 @@ async function runWrite(sql){
   } catch(e){ msg(friendly(e.message)); }
 }
 
+// insert dialog: one field per column, the autoincrement key skipped; an empty field takes the default / NULL
 async function addRow(){
+  const cols = state.structure.filter(c => !isAutoPk(c));
+  const v = await dialog(`Insert a row into ${state.table} (empty = default / NULL)`, cols.map(c => {
+    const required = c.notnull && c.dflt_value === null && !c.pk;
+    return {key: c.name, label: c.name + (required ? ' (required)' : ''),
+            placeholder: (c.type || '') + (c.dflt_value !== null ? ' default ' + c.dflt_value : '')};
+  }));
+  if (!v) return;
   const names = [], vals = [];
-  document.querySelectorAll('#addgrid input').forEach(inp => {
-    if (inp.value !== ''){
-      names.push(`"${inp.dataset.col}"`);
-      vals.push(sqlStr(inp.value));
+  cols.forEach(c => {
+    if (v[c.name] !== ''){
+      names.push(`"${c.name}"`);
+      vals.push(sqlStr(v[c.name]));
     }
   });
   const sql = names.length
@@ -569,10 +572,18 @@ window.delRow = async function(i){
 };
 
 $('#refresh').onclick = () => loadDbs(state.db).catch(e => msg(friendly(e.message)));
+$('#schema').onclick = async () => {  // open / close the structure panel; the rows stay as they are
+  if (!state.table) return;
+  state.schema = !state.schema;
+  if (state.schema && !state.loaded){
+    try { await loadStructure(); } catch(e){ state.schema = false; msg(friendly(e.message)); }
+  }
+  render();
+};
 $('#dbs').onchange = e => { state.db = e.target.value || null; store.set('db', state.db);
   loadTables().catch(err => msg(friendly(err.message))); };
 $('#tables').onchange = e => {  // a table picked by the user: load its rows now
-  state.table = e.target.value || null; state.offset = 0; state.loaded = false;
+  state.table = e.target.value || null; state.offset = 0; state.loaded = false; state.schema = false;
   store.set('table:' + state.db, state.table);
   loadRows().catch(err => msg(friendly(err.message))); };
 $('#newdb').onclick = async () => {
@@ -596,6 +607,7 @@ $('#newtable').onclick = async () => {
       {sql: `CREATE TABLE "${name}" (id INTEGER PRIMARY KEY AUTOINCREMENT) STRICT`})});
     msg(`✓ created table ${name} (STRICT, with an autoincrement id); add fields with “+ Add column”`, true);
     await loadTables(name);
+    state.schema = true;  // the next step is adding columns
     await loadRows();  // open the table just created
   } catch(e){ msg(friendly(e.message)); }
 };

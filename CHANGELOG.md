@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.5
+
+Console only. **Server redeploy needed** (`s3rds_version = "0.3.5"`, then `terraform apply`); no API change.
+
+1. **Schema behind a button.** Picking a table no longer shows its structure: the new **schema** button (next to
+   refresh) opens the structure panel (+ Add column, rename, drop) and closes it again. It starts closed on every
+   table, opens by itself after "+ New table", and works without loading the rows.
+2. **Insert row as a dialog.** The insert form above the rows is now a "+ Insert row" button next to the row count;
+   empty fields still take the default / NULL.
+
 ## 0.3.4
 
 Security fixes and optional sqlglot. **Server redeploy needed** (1, 2, 7) and **`terraform apply`** (3, 4, 5); the Function URLs stay.
