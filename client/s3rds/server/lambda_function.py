@@ -40,8 +40,10 @@ ALLOW_NO_AUTH = os.environ.get("ALLOW_NO_AUTH") == "1"  # no credentials configu
 READONLY = os.environ.get("READONLY") == "1"
 CONSOLE = os.environ.get("CONSOLE", "1") == "1"  # the web console at GET /; unset = on
 
+with open(os.path.join(os.path.dirname(__file__), "..", "sqlite", "__init__.py"), encoding="utf-8") as f:
+    VERSION = re.search(r'__version__ = "([^"]+)"', f.read()).group(1)   # this package's release, shown on the page
 with open(os.path.join(os.path.dirname(__file__), "index.html"), encoding="utf-8") as f:
-    INDEX_HTML = f.read()
+    INDEX_HTML = f.read().replace("__VERSION__", VERSION)
 
 NAME = r"[A-Za-z0-9_-]{1,64}"  # valid database / table names
 NAME_RE = re.compile(NAME + r"$")

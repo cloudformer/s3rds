@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.7
+
+Console only. **Server redeploy needed** (`s3rds_version = "0.3.7"`, then `terraform apply`); no API change.
+
+1. **Version on the page.** A small `s3rds 0.3.7` under the console, read from the package itself, so a page tells
+   which version a deployment serves.
+
 ## 0.3.6
 
 Console only. **Server redeploy needed** (`s3rds_version = "0.3.6"`, then `terraform apply`); no API change.
