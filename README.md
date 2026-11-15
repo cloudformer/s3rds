@@ -208,7 +208,7 @@ Release, in this order (each step only after the one before succeeded):
 4. **Make it the module's default** (when other deployments should get it without setting `s3rds_version`): in
    [terraform-aws-infra](https://github.com/cloudformer/terraform-aws-infra) set the default `s3rds_version` in
    `modules/s3rds/variables.tf`, commit, push, then
-   `AWS_PROFILE=dev TF_VAR_db_password='<16+ characters>' make release PROJECT=s3rds VERSION=vA.B.C` (mock tests,
+   `AWS_PROFILE=dev make release PROJECT=s3rds VERSION=vA.B.C` (mock tests,
    a real deploy + smoke test + destroy, then the tag; the Registry publishes it). Back here: `version = "A.B.C"`
    in `terraform/main.tf`, comment out `s3rds_version`, `terraform -chdir=terraform init -upgrade`, then `plan`
    (expected: No changes).
