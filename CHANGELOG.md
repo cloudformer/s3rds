@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.6
+
+Console only. **Server redeploy needed** (`s3rds_version = "0.3.6"`, then `terraform apply`); no API change.
+
+1. **Resizable columns.** Drag a header's right edge to set a column's width (rows and the SQL result alike);
+   double-click the edge to make it automatic again. Widths are kept per table in this browser, across refreshes.
+
 ## 0.3.5
 
 Console only. **Server redeploy needed** (`s3rds_version = "0.3.5"`, then `terraform apply`); no API change.

@@ -105,8 +105,12 @@ table { min-width: 100%; border-collapse: separate; border-spacing: 0; backgroun
 th {
   position: sticky; top: 0; z-index: 1;
   background: #374151; color: white; padding: 9px 12px; text-align: left;
-  font-weight: 600; font-size: 13px; white-space: nowrap;
+  font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* drag a header's right edge to set the column width; double-click the edge to make it automatic again */
+.col-resize { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; }
+.col-resize:hover { background: rgba(255,255,255,.3); }
+body.resizing { cursor: col-resize; user-select: none; }
 td {
   padding: 7px 12px; border-bottom: 1px solid #eef0f3; border-right: 1px solid #f3f4f6;
   font-size: 13px; color: #374151; max-width: 280px; font-variant-numeric: tabular-nums;
@@ -223,7 +227,7 @@ dialog .form-grid { grid-template-columns: 1fr; }
 const $ = s => document.querySelector(s);
 const state = {db:null, table:null, tables:[], loaded:false, offset:0, limit:50, total:0,
                columns:[], rows:[], structure:[], schema:false};  // schema: the structure panel is open
-// the browser keeps only two things: the credential and the last database/table (data is always fetched)
+// the browser keeps only the credential, the last database/table and column widths (data is always fetched)
 const store = {
   get: k => { try { return localStorage.getItem('srds_' + k); } catch(e){ return null; } },
   set: (k, v) => { try { v == null ? localStorage.removeItem('srds_' + k)
@@ -451,7 +455,7 @@ function render(){
   const page = Math.floor(state.offset / state.limit) + 1;
 
   // data grid
-  const dataHead = '<tr>' + state.columns.map(c => `<th>${esc(c)}</th>`).join('')
+  const dataHead = '<tr>' + state.columns.map(colTh).join('')
     + (hasRowid ? '<th>actions</th>' : '') + '</tr>';
   const dataRows = state.rows.map((r, i) =>
     `<tr data-i="${i}">` + r.map(cell).join('')
@@ -485,6 +489,7 @@ function render(){
     </div>
   </div>`;
 
+  if ($('#grid')) applyWidths($('#grid'));
   $('#addrow').onclick = addRow;
   if (state.schema) $('#addcol').onclick = addCol;
   $('#prev').onclick = () => { state.offset = Math.max(0, state.offset - state.limit);
@@ -492,6 +497,41 @@ function render(){
   $('#next').onclick = () => { state.offset += state.limit;
     loadRows().catch(e => msg(friendly(e.message))); };
 }
+
+// column widths: set by dragging, kept per table (and for the SQL result) in this browser
+const colWidths = (() => { try { return JSON.parse(store.get('colw')) || {}; } catch(e){ return {}; } })();   // "<db>.<table>" or "sql" -> {column: px}
+function saveWidths(){ store.set('colw', JSON.stringify(colWidths)); }
+function colTh(c){ return `<th data-col="${esc(c)}" title="${esc(c)}">${esc(c)}<span class="col-resize"></span></th>`; }
+function gridKey(t){ return t.id === 'grid' ? `${state.db}.${state.table}` : 'sql'; }
+function applyWidths(t){
+  const w = colWidths[gridKey(t)] || {};
+  t.querySelectorAll('thead th').forEach((th, i) => {
+    const css = th.dataset.col in w ? w[th.dataset.col] + 'px' : '';
+    for (const c of [th, ...t.querySelectorAll(`tbody td:nth-child(${i + 1})`)])
+      c.style.width = c.style.minWidth = c.style.maxWidth = css;
+  });
+}
+document.addEventListener('mousedown', e => {
+  const h = e.target.closest('.col-resize');
+  if (!h) return;
+  e.preventDefault();
+  const th = h.parentElement, t = th.closest('table'), key = gridKey(t), cs = getComputedStyle(th);
+  const x0 = e.clientX, w0 = th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const move = ev => { (colWidths[key] ||= {})[th.dataset.col] = Math.max(40, Math.round(w0 + ev.clientX - x0)); applyWidths(t); };
+  const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+                     document.body.classList.remove('resizing'); saveWidths(); };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+  document.body.classList.add('resizing');
+});
+document.addEventListener('dblclick', e => {
+  const h = e.target.closest('.col-resize');
+  if (!h) return;
+  const th = h.parentElement, t = th.closest('table');
+  delete (colWidths[gridKey(t)] || {})[th.dataset.col];
+  applyWidths(t);
+  saveWidths();
+});
 
 async function runWrite(sql){
   logSql(sql);
@@ -553,6 +593,7 @@ window.editRow = function(i){
   ).join('') + `<td style="white-space:nowrap">
       <button class="btn btn-primary btn-small" onclick="saveRow(${i})">save</button>
       <button class="btn btn-ghost btn-small" onclick="loadRows()">cancel</button></td>`;
+  applyWidths($('#grid'));
 };
 window.saveRow = async function(i){
   const tr = document.querySelector(`#grid tr[data-i="${i}"]`);
@@ -623,8 +664,9 @@ async function runSql(){
     const out = $('#sqlout'), t = $('#sqlgrid');
     if (d.columns.length){
       out.hidden = false;
-      t.innerHTML = '<thead><tr><th class="rownum">#</th>' + d.columns.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>'
+      t.innerHTML = '<thead><tr><th class="rownum">#</th>' + d.columns.map(colTh).join('') + '</tr></thead><tbody>'
         + d.rows.map((r, i) => `<tr><td class="rownum">${i + 1}</td>` + r.map(cell).join('') + '</tr>').join('') + '</tbody>';
+      applyWidths(t);
       msg(rowsLine(d), true);
     } else {
       t.innerHTML = ''; out.hidden = true;
