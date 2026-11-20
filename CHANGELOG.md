@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.8
+
+Console only. **Server redeploy needed** (`s3rds_version = "0.3.8"`, then `terraform apply`); no API change.
+
+1. **The s3keepass look.** A dark top bar (endpoint, database, sign out), the page uses the whole window, one set of
+   buttons (blue for the main action, outlined for the rest, red text for removing), quiet table headers, and dark
+   mode following the system setting.
+2. **Status bar.** The last call and its time at the bottom of the page; a click opens this session's history, newest
+   first, which stays open while you keep working (open or closed is remembered). The version there links to this
+   changelog. The latest result or error still shows right under the SQL box.
+3. **Schema right under its button.** Schema opens the table's structure directly below the button, in its own
+   tinted box; Hide schema removes it.
+4. **Dialogs.** Enter confirms (OK), the buttons are on the right.
+
 ## 0.3.7
 
 Console only. **Server redeploy needed** (`s3rds_version = "0.3.7"`, then `terraform apply`); no API change.

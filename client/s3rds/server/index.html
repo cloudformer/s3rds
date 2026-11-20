@@ -5,222 +5,180 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>srds console</title>
 <style>
-/* styling shared with the series console shell */
+/* ---- idlefree console shell: the same block on every console (s3rds, dynamoredis, s3shift, lambdaflow); the look of s3keepass ---- */
+:root {
+  --bg: #f3f4f6; --panel: #ffffff; --panel2: #f9fafb; --line: #e5e7eb; --line2: #d1d5db;
+  --text: #111827; --muted: #6b7280; --faint: #9ca3af;
+  --accent: #2563eb; --accent-bg: #dbeafe; --accent-text: #1e40af;
+  --ok: #059669; --err: #dc2626; --err-bg: #fef2f2;
+  --bar: #1f2937; --bar-text: #f9fafb; --bar-muted: #9ca3af;
+  --code-bg: #111827; --code-text: #d1d5db; --code-sql: #93c5fd; --code-ok: #86efac; --code-err: #fca5a5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f17; --panel: #111827; --panel2: #0f1623; --line: #1f2937; --line2: #374151;
+    --text: #e5e7eb; --muted: #9ca3af; --faint: #6b7280;
+    --accent: #3b82f6; --accent-bg: #1e3a8a; --accent-text: #dbeafe; --err-bg: #2a1215;
+    --bar: #030712; --code-bg: #030712;
+  }
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  min-height: 100vh;
-  padding: 40px 20px;
-}
-.container {
-  max-width: 1440px;
-  margin: 0 auto;
-  background: white;
-  border-radius: 15px;
-  padding: 40px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-}
-h1 { color: #333; margin-bottom: 10px; }
-/* header: Endpoint first, Database (fixed width, no jitter when switching), sign-out on the right */
-.db-info {
-  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
-  margin: 6px 0 24px; font-size: 13px;
-}
-.db-info .meta { display: inline-flex; align-items: center; gap: 8px; }
-.db-info .k {
-  font-size: 11px; font-weight: 600; letter-spacing: .06em;
-  text-transform: uppercase; color: #9ca3af;
-}
-.chip {
-  background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px;
-  padding: 4px 10px; color: #374151; font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-/* fixed width so content length never moves the elements after it */
-#info-db { width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body { font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 34px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+a { color: var(--accent); }
+/* top bar: name, where it runs, sign out */
+.bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px; min-height: 52px;
+  background: var(--bar); color: var(--bar-text); }
+.brand { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.brand .logo { width: 30px; height: 30px; border-radius: 7px; background: #2b2d31; display: grid; place-items: center; font-size: 16px; }
+.bar .meta { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.bar .k { color: var(--bar-muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.bar .chip { font: 12px var(--mono); color: var(--bar-text); background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+.bar .spacer { flex: 1; }
+.tb { background: transparent; border: 1px solid transparent; color: var(--bar-text); border-radius: 6px; padding: 5px 9px;
+  cursor: pointer; font-size: 13px; white-space: nowrap; text-decoration: none; }
+.tb:hover { background: rgba(255,255,255,.1); }
+.tb.on { background: rgba(255,255,255,.14); }
+.page { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+/* buttons: blue = the main action, outlined = the rest, red text = removes something */
+.btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line2); background: var(--panel); color: var(--text);
+  cursor: pointer; font-weight: 500; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-primary, .btn-secondary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled) { filter: brightness(1.08); color: #fff; }
+.btn-danger { padding: 3px 9px; font-size: 12px; border-radius: 6px; border: 1px solid var(--line2); background: var(--panel);
+  color: var(--err); cursor: pointer; }
+.btn-danger:hover { border-color: var(--err); background: var(--err-bg); }
+.btn-small { padding: 3px 9px; font-size: 12px; }
+input, select, textarea { background: var(--panel); border: 1px solid var(--line2); border-radius: 6px; padding: 6px 10px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+/* panels and text */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.section-title { font-size: 13px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.code { width: 100%; min-height: 90px; resize: vertical; font: 13px/1.5 var(--mono); padding: 8px 10px; }
+.actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+/* tables: a quiet header row, numbers line up, wide results scroll inside their own frame */
+.grid-wrap { overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+table { min-width: 100%; border-collapse: separate; border-spacing: 0; }
+th { position: sticky; top: 0; z-index: 1; background: var(--panel2); color: var(--muted); font-size: 12px; font-weight: 600;
+  text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+td { padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; line-height: 1.45;
+  font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--panel2); }
+td.null { color: var(--faint); font-style: italic; }
+td input { width: 100%; min-width: 80px; padding: 4px 8px; font-size: 13px; }
+/* the latest run's result or error, right under the box that ran it */
+.out { margin-top: 10px; padding: 8px 12px; border-radius: 6px; background: var(--code-bg); color: var(--code-text);
+  font: 12px/1.7 var(--mono); white-space: pre-wrap; max-height: 240px; overflow: auto; }
+.out:empty { display: none; }
+.out .sql, .history .sql { color: var(--code-sql); } .out .ok, .history .ok { color: var(--code-ok); }
+.out .err, .history .err { color: var(--code-err); }
+/* status bar: the last call; click for this session's history; the version links to the changelog */
+.status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; gap: 12px; align-items: center;
+  padding: 4px 16px; min-height: 26px; font: 12px var(--mono); color: var(--muted); background: var(--panel);
+  border-top: 1px solid var(--line); cursor: pointer; }
+.status .last { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status .last.ok { color: var(--ok); } .status .last.err { color: var(--err); }
+.status .ver { color: var(--accent); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; }
+.history { position: fixed; left: 0; right: 0; bottom: 26px; z-index: 5; max-height: 40vh; overflow: auto; padding: 8px 16px;
+  background: var(--code-bg); color: var(--code-text); font: 12px/1.7 var(--mono); white-space: pre-wrap; border-top: 1px solid var(--line2); }
+.history .sep { border-top: 1px dashed #4b5563; margin: 6px 0; }
+/* dialogs */
+dialog { border: none; border-radius: 12px; padding: 22px 24px; width: 440px; max-width: calc(100vw - 32px);
+  background: var(--panel); color: var(--text); box-shadow: 0 24px 64px rgba(0,0,0,.35); position: fixed; inset: 0; margin: auto; }
+dialog::backdrop { background: rgba(15,23,42,.55); }
+dialog h3 { font-size: 17px; margin-bottom: 6px; }
+.form-grid { display: grid; gap: 12px; margin: 8px 0 4px; }
+.form-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.form-field input { width: 100%; padding: 8px 10px; }
+.form-field small { color: var(--faint); font-size: 12px; }
+dialog .actions { flex-direction: row-reverse; justify-content: flex-start; margin-top: 16px; }   /* OK first in the form (Enter), shown on the right */
+/* ---- end idlefree console shell ---- */
 
-/* output log (DataGrip style) */
-.log {
-  background: #1f2937; color: #d1d5db; border-radius: 8px;
-  padding: 10px 14px; margin: 12px 0 0; max-height: 200px; overflow: auto;
-  font: 12px/1.7 ui-monospace, 'Courier New', monospace; white-space: pre-wrap;
-}
-.log:empty { display: none; }
-.log.expanded { max-height: 360px; }
-.log .sep { border-top: 1px dashed #4b5563; margin: 6px 0; }
-.log .sql { color: #93c5fd; }
-.log .ok  { color: #86efac; }
-.log .err { color: #fca5a5; }
-
-/* Controls */
-.controls { display: flex; gap: 15px; margin: 20px 0; flex-wrap: wrap; align-items: center; }
-.controls label { font-size: 14px; font-weight: 600; color: #4b5563; }
-.controls select {
-  padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 6px;
-  font-size: 14px; min-width: 180px; background: white;
-}
-.btn {
-  padding: 10px 20px; border: none; border-radius: 6px;
-  font-weight: 600; cursor: pointer; transition: all .3s; font-size: 14px;
-}
-.btn-primary   { background: #10b981; color: white; }
-.btn-primary:hover { background: #059669; }
-.btn-secondary { background: #667eea; color: white; }
-.btn-secondary:hover { background: #5568d3; }
-.btn-ghost { background: white; color: #374151; border: 2px solid #e5e7eb; }
-.btn-ghost:hover { border-color: #667eea; color: #667eea; }
-.btn-danger {
-  background: #ef4444; color: white; padding: 5px 10px;
-  border: none; border-radius: 4px; cursor: pointer; font-size: 12px;
-}
-.btn-danger:hover { background: #dc2626; }
-.btn-small { padding: 5px 10px; font-size: 12px; border-radius: 4px; }
-
-/* Table section */
-.table-section {
-  margin: 30px 0; border: 2px solid #e5e7eb; border-radius: 10px;
-  padding: 20px; background: #f8fafc;
-}
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.table-name { font-size: 22px; font-weight: 600; color: #1f2937; }
-.row-count {
-  background: #10b981; color: white; padding: 6px 15px;
-  border-radius: 20px; font-size: 14px; font-weight: 600;
-}
-.section-title {
-  font-size: 16px; font-weight: 600; color: #4b5563; margin: 20px 0 10px 0;
-  display: flex; align-items: center; gap: 10px;
-}
-/* result grid: every column visible at once (long text wraps inside its cell, nothing is cut off);
-   a very wide or tall result scrolls inside its own frame with the header pinned */
-.grid-wrap {
-  overflow: auto; max-height: 60vh; margin-bottom: 20px;
-  border: 1px solid #d1d5db; border-radius: 8px; background: white;
-}
-.grid-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
-.grid-wrap::-webkit-scrollbar-thumb { background: #c4c9d2; border-radius: 5px; border: 2px solid white; }
-.grid-wrap::-webkit-scrollbar-corner { background: white; }
-table { min-width: 100%; border-collapse: separate; border-spacing: 0; background: white; }
-th {
-  position: sticky; top: 0; z-index: 1;
-  background: #374151; color: white; padding: 9px 12px; text-align: left;
-  font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+/* ---- s3rds ---- */
+#info-db { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.controls select { min-width: 160px; }
+.table-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.table-name { font-size: 16px; font-weight: 600; }
+.row-count { font-size: 12px; color: var(--muted); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.grid-wrap + .section-title, .grid-wrap + .pagination { margin-top: 14px; }
+/* the schema panel: its own tinted box above the rows, so it reads as a separate thing */
+.schema-box { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 8px; padding: 12px; }
+.schema-title { font-size: 15px; color: var(--accent-text); }
+.schema-title .spacer { flex: 1; }
+#schema.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-text); }
 /* drag a header's right edge to set the column width; double-click the edge to make it automatic again */
 .col-resize { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; }
-.col-resize:hover { background: rgba(255,255,255,.3); }
+.col-resize:hover { background: var(--accent-bg); }
 body.resizing { cursor: col-resize; user-select: none; }
-td {
-  padding: 7px 12px; border-bottom: 1px solid #eef0f3; border-right: 1px solid #f3f4f6;
-  font-size: 13px; color: #374151; max-width: 280px; font-variant-numeric: tabular-nums;
-  white-space: normal; overflow-wrap: anywhere; vertical-align: top; line-height: 1.45;
-}
-td.rownum, th.rownum { color: #9ca3af; text-align: right; min-width: 36px; background: #f9fafb; }
-th.rownum { background: #374151; color: #9ca3af; }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: #f9fafb; }
-td.null { color: #9ca3af; font-style: italic; }
-td input {
-  width: 100%; min-width: 80px; padding: 6px 8px;
-  border: 2px solid #e5e7eb; border-radius: 4px; font-size: 13px;
-}
-
-.form-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 15px; margin-bottom: 15px;
-}
-.form-field label {
-  display: block; font-size: 13px; font-weight: 600;
-  color: #374151; margin-bottom: 5px;
-}
-.form-field input {
-  width: 100%; padding: 8px; border: 2px solid #e5e7eb;
-  border-radius: 4px; font-size: 14px;
-}
-.form-field small { color: #6b7280; font-size: 12px; }
-
-/* Pagination */
-.pagination { display: flex; gap: 10px; justify-content: center; align-items: center; margin: 20px 0 0; }
-.pagination button, .pagination span {
-  padding: 8px 12px; border-radius: 6px; font-size: 14px;
-  color: #374151; background: white; border: 2px solid #e5e7eb;
-}
+td { max-width: 280px; }
+td.rownum, th.rownum { color: var(--faint); text-align: right; min-width: 36px; background: var(--panel2); }
+.pagination { display: flex; gap: 8px; justify-content: center; align-items: center; }
+.pagination button, .pagination span { padding: 5px 12px; border-radius: 6px; font-size: 13px; background: var(--panel); border: 1px solid var(--line2); }
 .pagination button { cursor: pointer; }
-.pagination button:hover:not(:disabled) { background: #667eea; color: white; border-color: #667eea; }
-.pagination button:disabled { opacity: .5; cursor: not-allowed; }
-.pagination .current { background: #667eea; color: white; border-color: #667eea; font-weight: 600; }
-
-.empty { padding: 40px; text-align: center; color: #9ca3af; }
-
-/* SQL console */
-.sql-section {
-  margin: 20px 0; border: 2px solid #e5e7eb; border-radius: 10px;
-  padding: 20px; background: #f8fafc;
-}
-.sql-section textarea {
-  width: 100%; height: 90px; resize: vertical; padding: 12px;
-  border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;
-  font-family: ui-monospace, 'Courier New', monospace;
-}
-.sql-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
-.hint { font-size: 12px; color: #6b7280; }
-
-/* in-page modal (browsers suppress prompt() in Lambda URL pages) */
-dialog {
-  border: none; border-radius: 10px; padding: 25px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3); min-width: 340px; max-width: 90vw;
-  position: fixed; inset: 0; margin: auto;   /* centred in the viewport, whatever the page scroll */
-}
-dialog::backdrop { background: rgba(0,0,0,.4); }
-dialog h3 { margin-bottom: 15px; color: #1f2937; font-size: 17px; }
-dialog .form-grid { grid-template-columns: 1fr; }
-.ver { margin-top: 16px; text-align: right; font-size: 11px; color: #c4c9d2; }
-@media (max-width: 640px){ .container { padding: 20px; } body { padding: 16px; } }
+.pagination button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pagination button:disabled { opacity: .5; cursor: default; }
+.pagination .current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>📊 s3rds console</h1>
-  <div class="db-info">
-    <span class="meta"><span class="k">Endpoint</span><span class="chip" id="info-host">-</span></span>
-    <span class="meta"><span class="k">Database</span><span class="chip" id="info-db">-</span></span>
-    <button class="btn btn-ghost btn-small" id="logout">sign out</button>
-  </div>
+<header class="bar">
+  <span class="brand"><span class="logo">📊</span>s3rds console</span>
+  <span class="meta"><span class="k">Endpoint</span><span class="chip" id="info-host">-</span></span>
+  <span class="meta"><span class="k">Database</span><span class="chip" id="info-db">-</span></span>
+  <span class="spacer"></span>
+  <button class="tb" id="logout">Sign out</button>
+</header>
 
+<div class="page">
   <div class="controls">
-    <label>Database</label><select id="dbs"></select>
+    <label for="dbs">Database</label><select id="dbs"></select>
     <button class="btn btn-secondary" id="newdb">+ New database</button>
-    <label>Table</label><select id="tables"></select>
+    <label for="tables">Table</label><select id="tables"></select>
     <button class="btn btn-secondary" id="newtable">+ New table</button>
-    <button class="btn btn-ghost" id="refresh">refresh</button>
-    <button class="btn btn-ghost" id="schema" disabled>schema</button>
+    <button class="btn" id="refresh">Refresh</button>
+    <button class="btn" id="schema" disabled>Schema</button>
   </div>
+  <div id="schemapanel" hidden></div>
 
-  <div class="sql-section">
-    <div class="section-title">SQL</div>
-    <textarea id="sql" placeholder="One statement at a time, e.g. CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL) STRICT"></textarea>
-    <div class="sql-actions">
+  <div class="panel">
+    <div class="section-title"><label for="sql">SQL</label></div>
+    <textarea id="sql" class="code" placeholder="One statement at a time, e.g. CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL) STRICT"></textarea>
+    <div class="actions">
       <button class="btn btn-primary" id="run">▶ Run</button>
       <span class="hint">⌘/Ctrl+Enter runs · an empty field = NULL</span>
-      <span style="flex:1"></span>
-      <button class="btn btn-ghost btn-small" id="togglelog">history</button>
     </div>
-    <div class="log" id="log"></div>
+    <div class="out" id="log"></div>
     <div id="sqlout" class="grid-wrap" style="margin-top:12px" hidden><table id="sqlgrid"></table></div>
   </div>
 
   <div id="main"></div>
-  <div class="ver">s3rds __VERSION__</div>
 </div>
+
+<div class="history" id="history" hidden></div>
+<footer class="status" id="status" title="Click: this session's calls">
+  <span class="last" id="last">ready</span>
+  <a class="ver" href="https://github.com/cloudformer/s3rds/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer"
+     title="What changed in each release">s3rds __VERSION__</a>
+</footer>
 
 <dialog id="dlg">
   <form method="dialog">
     <h3 id="dlgtitle"></h3>
     <div class="form-grid" id="dlgbody"></div>
-    <div class="sql-actions">
+    <div class="actions">
       <button class="btn btn-primary" value="ok">OK</button>
-      <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
     </div>
   </form>
 </dialog>
@@ -280,9 +238,10 @@ function fmtMs(ms){
   ms = Math.max(0, Math.round(ms));
   return ms >= 1000 ? `${Math.floor(ms/1000)} s ${ms%1000} ms` : `${ms} ms`;
 }
-// one run = one group (SQL line + result line); only the latest shows by default, "history" expands all, newest first
+// one run = one group (SQL line + result line): the latest shows under the SQL box and in the status bar;
+// a click on the status bar opens this session's history, newest first (open or closed is remembered)
 const logGroups = [];
-let logExpanded = false;
+let historyOpen = store.get('history') === '1';
 function logStart(){
   logGroups.push([]);
   if (logGroups.length > 300) logGroups.shift();
@@ -293,17 +252,20 @@ function log(text, cls){
   renderLog();
 }
 function renderLog(){
-  const el = $('#log');
-  el.innerHTML = '';
-  el.classList.toggle('expanded', logExpanded);
-  const groups = logExpanded ? logGroups.slice().reverse() : logGroups.slice(-1);
-  groups.forEach((g, i) => {
-    if (i) el.appendChild(Object.assign(document.createElement('div'), {className: 'sep'}));
-    g.forEach(l => el.appendChild(Object.assign(document.createElement('div'),
-      {className: l.cls || '', textContent: l.text})));
-  });
-  el.scrollTop = 0;
-  $('#togglelog').textContent = logExpanded ? 'latest only' : `history (${logGroups.length})`;
+  const line = l => Object.assign(document.createElement('div'), {className: l.cls || '', textContent: l.text});
+  const latest = logGroups[logGroups.length - 1] || [];
+  $('#log').replaceChildren(...latest.map(line));
+  const last = latest[latest.length - 1];
+  $('#last').textContent = last ? last.text : 'ready';
+  $('#last').className = 'last ' + (last && last.cls || '');
+  const h = $('#history');
+  h.hidden = !historyOpen;
+  if (historyOpen){
+    h.replaceChildren(...logGroups.slice().reverse().flatMap((g, i) =>
+      (i ? [Object.assign(document.createElement('div'), {className: 'sep'})] : []).concat(g.map(line))));
+    if (!logGroups.length) h.textContent = 'No calls yet in this session.';
+    h.scrollTop = 0;
+  }
 }
 function logSql(sql){ logStart(); log(`${state.db}> ${sql.replace(/\s+/g, ' ').trim()}`, 'sql'); }
 function msg(t, ok){ if (t) log(`[${ts()}] ${t}`, ok ? 'ok' : 'err'); }
@@ -412,44 +374,50 @@ function schemaSection(){
       <td>${c.dflt_value === null ? '-' : esc(c.dflt_value)}</td>
       <td>${isAutoPk(c) ? 'auto_increment' : '-'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-small" onclick="renameCol(${i})">rename</button>
+        <button class="btn btn-small" onclick="renameCol(${i})">rename</button>
         ${c.pk ? '' : `<button class="btn-danger" onclick="dropCol(${i})">drop</button>`}
       </td>
     </tr>`).join('');
   return `
-    <div class="section-title">Schema
-      <button class="btn btn-secondary btn-small" id="addcol">+ Add column</button>
-    </div>
-    <div class="grid-wrap"><table>
-      <thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th><th>actions</th></tr></thead>
-      <tbody>${structRows}</tbody>
-    </table></div>`;
+    <div class="schema-box">
+      <div class="section-title schema-title">🧱 Schema <span class="hint">${state.structure.length} columns</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-small" id="addcol">+ Add column</button>
+      </div>
+      <div class="grid-wrap"><table>
+        <thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th><th>actions</th></tr></thead>
+        <tbody>${structRows}</tbody>
+      </table></div>
+    </div>`;
 }
 
 function render(){
   $('#info-db').textContent = state.db || '-';
   $('#schema').disabled = !state.table;
-  $('#schema').textContent = state.schema ? 'hide schema' : 'schema';
+  $('#schema').textContent = state.schema ? 'Hide schema' : 'Schema';
+  $('#schema').classList.toggle('on', state.schema);
+  // the structure panel sits right under the Schema button; closed = gone, nothing to scroll to
+  $('#schemapanel').innerHTML = state.table ? schemaSection() : '';
+  $('#schemapanel').hidden = !(state.schema && state.table);
+  if (state.schema && state.table) $('#addcol').onclick = addCol;
   const main = $('#main');
   if (!state.db){
-    main.innerHTML = '<div class="table-section"><div class="empty">Pick a database above, or click “+ New database”</div></div>';
+    main.innerHTML = '<div class="panel"><div class="empty">Pick a database above, or click “+ New database”</div></div>';
     return;
   }
   if (!state.table){
-    main.innerHTML = `<div class="table-section"><div class="empty">${state.tables.length
+    main.innerHTML = `<div class="panel"><div class="empty">${state.tables.length
       ? 'Pick a table above'
       : 'No tables yet — click “+ New table”, or write CREATE TABLE in the SQL box'}</div></div>`;
     return;
   }
   if (!state.loaded){
-    main.innerHTML = `<div class="table-section">
+    main.innerHTML = `<div class="panel">
       <div class="table-header"><div class="table-name">📋 ${esc(state.table)}</div></div>
-      ${schemaSection()}
       <div class="empty">Rows are not loaded automatically.
         <button class="btn btn-primary" id="loadbtn" style="margin-left:10px">Load rows</button>
       </div></div>`;
     $('#loadbtn').onclick = () => loadRows().catch(e => msg(friendly(e.message)));
-    if (state.schema) $('#addcol').onclick = addCol;
     return;
   }
   const hasRowid = state.columns[0] === '_rowid_';
@@ -462,12 +430,12 @@ function render(){
   const dataRows = state.rows.map((r, i) =>
     `<tr data-i="${i}">` + r.map(cell).join('')
     + (hasRowid
-      ? `<td style="white-space:nowrap"><button class="btn btn-ghost btn-small" onclick="editRow(${i})">edit</button>
+      ? `<td style="white-space:nowrap"><button class="btn btn-small" onclick="editRow(${i})">edit</button>
          <button class="btn-danger" onclick="delRow(${i})">🗑 delete</button></td>` : '')
     + '</tr>').join('');
 
   main.innerHTML = `
-  <div class="table-section">
+  <div class="panel">
     <div class="table-header">
       <div class="table-name">📋 ${esc(state.table)}</div>
       <div style="display:flex; gap:10px; align-items:center">
@@ -475,7 +443,6 @@ function render(){
         <button class="btn btn-secondary btn-small" id="addrow">+ Insert row</button>
       </div>
     </div>
-    ${schemaSection()}
 
     <div class="section-title">Rows (page ${page} / ${pages})
       ${state.ms !== undefined ? `<span class="hint">${state.ms} ms · ${state.s3}</span>` : ''}
@@ -493,7 +460,6 @@ function render(){
 
   if ($('#grid')) applyWidths($('#grid'));
   $('#addrow').onclick = addRow;
-  if (state.schema) $('#addcol').onclick = addCol;
   $('#prev').onclick = () => { state.offset = Math.max(0, state.offset - state.limit);
     loadRows().catch(e => msg(friendly(e.message))); };
   $('#next').onclick = () => { state.offset += state.limit;
@@ -594,7 +560,7 @@ window.editRow = function(i){
     : `<td><input data-j="${j}" value="${row[j] === null ? '' : esc(row[j])}" placeholder="NULL"></td>`
   ).join('') + `<td style="white-space:nowrap">
       <button class="btn btn-primary btn-small" onclick="saveRow(${i})">save</button>
-      <button class="btn btn-ghost btn-small" onclick="loadRows()">cancel</button></td>`;
+      <button class="btn btn-small" onclick="loadRows()">cancel</button></td>`;
   applyWidths($('#grid'));
 };
 window.saveRow = async function(i){
@@ -678,10 +644,14 @@ async function runSql(){
   } catch(e){ msg(friendly(e.message)); }
 }
 $('#run').onclick = runSql;
-$('#togglelog').onclick = () => { logExpanded = !logExpanded; renderLog(); };
+$('#status').onclick = e => {
+  if (e.target.closest('a')) return;
+  historyOpen = !historyOpen; store.set('history', historyOpen ? '1' : null); renderLog();
+};
 $('#sql').addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); runSql(); } });
 
+renderLog();
 loadDbs().catch(e => msg(friendly(e.message)));
 </script>
 </body>
